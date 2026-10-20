@@ -10,6 +10,7 @@
   #form { background:#fff; padding:14px; border-radius:8px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:8px; }
   #form input { padding:9px 11px; font-size:14px; border:1px solid #ccc; border-radius:6px; flex:1; min-width:120px; }
   #form button { padding:9px 20px; font-size:14px; font-weight:bold; color:#fff; background:#2e7d32; border:none; border-radius:6px; cursor:pointer; }
+  #form button:disabled { background:#9e9e9e; cursor:default; }
   #search { padding:10px 12px; width:100%; max-width:300px; margin-bottom:14px; font-size:14px; border:1px solid #ccc; border-radius:8px; }
   .table-wrap { overflow-x:auto; }
   table { border-collapse:collapse; width:100%; background:#fff; border-radius:8px; overflow:hidden; }
@@ -91,18 +92,43 @@ function loadData() {
 }
 
 function addRow() {
+  const name = document.getElementById("f_name").value.trim();
+  const date = document.getElementById("f_date").value.trim();
+
+  // 1차 검증: 필수값 빈칸 체크
+  if (name === "" || date === "") {
+    alert("고객명과 접수일은 꼭 입력해주세요!");
+    return;
+  }
+
   const newData = {
-    "접수일": document.getElementById("f_date").value,
-    "고객명": document.getElementById("f_name").value,
-    "기종": document.getElementById("f_model").value,
-    "증상": document.getElementById("f_symptom").value,
-    "상태": document.getElementById("f_status").value,
-    "담당": document.getElementById("f_manager").value
+    "접수일": date,
+    "고객명": name,
+    "기종": document.getElementById("f_model").value.trim(),
+    "증상": document.getElementById("f_symptom").value.trim(),
+    "상태": document.getElementById("f_status").value.trim(),
+    "담당": document.getElementById("f_manager").value.trim()
   };
-  fetch(API_URL, { method: "POST", body: JSON.stringify(newData) })
+
+  // 중복 방지: 버튼 잠그기
+  const btn = document.querySelector("#form button");
+  btn.disabled = true;
+  btn.textContent = "추가 중...";
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify(newData)
+  })
   .then(function(res) { return res.json(); })
-  .then(function() { alert("추가됐어요!"); location.reload(); })
-  .catch(function(err) { alert("실패: " + err); });
+  .then(function() {
+    alert("추가됐어요!");
+    location.reload();
+  })
+  .catch(function(err) {
+    alert("실패: " + err);
+    btn.disabled = false;
+    btn.textContent = "추가";
+  });
 }
 
 document.querySelector("#search").addEventListener("input", function(e) {
