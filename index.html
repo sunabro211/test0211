@@ -8,7 +8,7 @@
   body { font-family: sans-serif; background:#f5f6f8; padding:20px; color:#222; }
   h1 { font-size:20px; }
   #form { background:#fff; padding:14px; border-radius:8px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:8px; }
-  #form input { padding:9px 11px; font-size:14px; border:1px solid #ccc; border-radius:6px; flex:1; min-width:120px; }
+  #form input, #form select { padding:9px 11px; font-size:14px; border:1px solid #ccc; border-radius:6px; flex:1; min-width:120px; }
   #form button { padding:9px 20px; font-size:14px; font-weight:bold; color:#fff; background:#2e7d32; border:none; border-radius:6px; cursor:pointer; }
   #form button:disabled { background:#9e9e9e; cursor:default; }
   #search { padding:10px 12px; width:100%; max-width:300px; margin-bottom:14px; font-size:14px; border:1px solid #ccc; border-radius:8px; }
@@ -17,6 +17,7 @@
   th, td { padding:12px 14px; text-align:left; border-bottom:1px solid #eee; font-size:14px; white-space:nowrap; }
   th { background:#2e7d32; color:#fff; }
   tr:hover { background:#f9f9f9; }
+  .edit-btn { padding:5px 12px; font-size:13px; border:1px solid #2e7d32; color:#2e7d32; background:#fff; border-radius:6px; cursor:pointer; }
   @media (max-width: 600px) {
     body { padding:12px; }
     th, td { padding:8px 10px; font-size:13px; }
@@ -29,13 +30,22 @@
 <h1>AS 수리내역</h1>
 
 <div id="form">
-  <input id="f_date" placeholder="접수일 (예: 2024-03-20)">
+  <input type="date" id="f_date">
   <input id="f_name" placeholder="고객명">
   <input id="f_model" placeholder="기종">
   <input id="f_symptom" placeholder="증상">
-  <input id="f_status" placeholder="상태 (접수/진행중/완료)">
-  <input id="f_manager" placeholder="담당">
+  <select id="f_status">
+    <option value="접수">접수</option>
+    <option value="진행중">진행중</option>
+    <option value="완료">완료</option>
+  </select>
+  <select id="f_manager">
+    <option value="이기사">이기사</option>
+    <option value="최기사">최기사</option>
+    <option value="김기사">김기사</option>
+  </select>
   <button onclick="addRow()">추가</button>
+  <button type="button" onclick="cancelEdit()" id="cancelBtn" style="display:none; background:#9e9e9e;">취소</button>
 </div>
 
 <input type="text" id="search" placeholder="고객명 검색...">
@@ -43,7 +53,7 @@
 <div class="table-wrap">
 <table id="list">
 <thead>
-<tr><th>접수일</th><th>고객명</th><th>기종</th><th>증상</th><th>상태</th><th>담당</th></tr>
+<tr><th>접수일</th><th>고객명</th><th>기종</th><th>증상</th><th>상태</th><th>담당</th><th>관리</th></tr>
 </thead>
 <tbody></tbody>
 </table>
@@ -52,6 +62,7 @@
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbxuk53HfBi7JME4TPv8XqQIlxGHGTOwDl3Ke1GnmqgpqO17XtuC3z0bw3_uR6y9rdRKXA/exec";
 let allData = [];
+let 수정중ID = null;
 
 function badge(status) {
   var color = "#9e9e9e";
@@ -71,7 +82,8 @@ function render(list) {
       "<td>" + row["기종"] + "</td>" +
       "<td>" + row["증상"] + "</td>" +
       "<td>" + badge(row["상태"]) + "</td>" +
-      "<td>" + row["담당"] + "</td>";
+      "<td>" + row["담당"] + "</td>" +
+      "<td><button class='edit-btn' onclick='editRow(" + row["ID"] + ")'>수정</button></td>";
     tbody.appendChild(tr);
   });
 }
@@ -91,11 +103,36 @@ function loadData() {
     });
 }
 
+function editRow(id) {
+  const row = allData.find(function(r) { return String(r["ID"]) === String(id); });
+  if (!row) return;
+
+  document.getElementById("f_date").value = row["접수일"];
+  document.getElementById("f_name").value = row["고객명"];
+  document.getElementById("f_model").value = row["기종"];
+  document.getElementById("f_symptom").value = row["증상"];
+  document.getElementById("f_status").value = row["상태"];
+  document.getElementById("f_manager").value = row["담당"];
+
+  수정중ID = id;
+  document.querySelector("#form button").textContent = "수정 저장";
+  document.getElementById("cancelBtn").style.display = "inline-block";
+  window.scrollTo(0, 0);
+}
+
+function cancelEdit() {
+  수정중ID = null;
+  document.querySelector("#form button").textContent = "추가";
+  document.getElementById("cancelBtn").style.display = "none";
+  ["f_date","f_name","f_model","f_symptom"].forEach(function(id) {
+    document.getElementById(id).value = "";
+  });
+}
+
 function addRow() {
   const name = document.getElementById("f_name").value.trim();
   const date = document.getElementById("f_date").value.trim();
 
-  // 1차 검증: 필수값 빈칸 체크
   if (name === "" || date === "") {
     alert("고객명과 접수일은 꼭 입력해주세요!");
     return;
@@ -106,14 +143,19 @@ function addRow() {
     "고객명": name,
     "기종": document.getElementById("f_model").value.trim(),
     "증상": document.getElementById("f_symptom").value.trim(),
-    "상태": document.getElementById("f_status").value.trim(),
-    "담당": document.getElementById("f_manager").value.trim()
+    "상태": document.getElementById("f_status").value,
+    "담당": document.getElementById("f_manager").value
   };
 
-  // 중복 방지: 버튼 잠그기
+  // 수정 모드면 action 추가
+  if (수정중ID !== null) {
+    newData.action = "update";
+    newData["ID"] = 수정중ID;
+  }
+
   const btn = document.querySelector("#form button");
   btn.disabled = true;
-  btn.textContent = "추가 중...";
+  btn.textContent = 수정중ID !== null ? "저장 중..." : "추가 중...";
 
   fetch(API_URL, {
     method: "POST",
@@ -121,13 +163,13 @@ function addRow() {
   })
   .then(function(res) { return res.json(); })
   .then(function() {
-    alert("추가됐어요!");
+    alert(수정중ID !== null ? "수정됐어요!" : "추가됐어요!");
     location.reload();
   })
   .catch(function(err) {
     alert("실패: " + err);
     btn.disabled = false;
-    btn.textContent = "추가";
+    btn.textContent = 수정중ID !== null ? "수정 저장" : "추가";
   });
 }
 
